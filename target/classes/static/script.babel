@@ -1,0 +1,450 @@
+const {Component} = React;
+const { render } = ReactDOM;
+const {BrowserRouter, Route, Link, Redirect} = ReactRouterDOM;
+
+
+class UpdateDeleteArticle extends Component {
+  constructor(props){
+    super(props);
+    this.state = {article: {}, error: false, errorMessage: ""}
+    this.handleTitleChange = this.handleTitleChange.bind(this);
+    this.handleBodyChange = this.handleBodyChange.bind(this);
+    this.handleUpdate = this.handleUpdate.bind(this);
+    this.handleDelete = this.handleDelete.bind(this);
+  }
+  handleTitleChange(e){
+    let {article} = this.state;
+    article = Object.assign({}, article, {title: e.target.value});
+    this.setState({article});
+  }
+  handleBodyChange(e){
+    let {article} = this.state;
+    article = Object.assign({}, article, {body: e.target.value});
+    this.setState({article});
+  }
+  handleUpdate(){
+    let {article} = this.state;
+    if(article.title == "" || article.body == ""){
+      let errorMessage = "";
+      if(article.title == "" && article.body == ""){
+        errorMessage = "Fields are empty";
+      }
+      else if(article.title == ""){
+        errorMessage = "Title is empty";
+      }
+      else {
+        errorMessage = "Body is empty";
+      }
+      this.setState({errorMessage});
+    }
+    else {
+      let id = window.location.toString().substring(window.location.toString().lastIndexOf("/") + 1);
+      let url = "http://localhost:8080/articles/" + id;
+      let xhr = new XMLHttpRequest();
+      xhr.open("PATCH", url, true);
+      xhr.onreadystatechange = () => {
+        if(xhr.readyState == 4){
+          if(xhr.status == 200){
+            this.setState({error: false, errorMessage: "Article updated"});
+          }
+          else{
+            this.setState({error: false, errorMessage: "Error occurred, try again"});
+          }
+        }
+      }
+      xhr.setRequestHeader("Authorization", "Bearer " + this.props.token);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify(article));
+    }
+  }
+  handleDelete(){
+    let id = window.location.toString().substring(window.location.toString().lastIndexOf("/") + 1);
+      let url = "http://localhost:8080/articles/" + id;
+      let xhr = new XMLHttpRequest();
+      xhr.open("DELETE", url, true);
+      xhr.onreadystatechange = () => {
+        if(xhr.readyState == 4){
+          let {article} = this.state;
+          article = Object.assign({}, {title: "", body: ""});
+          this.setState({article, errorMessage: "Article deleted"});
+        }
+      }
+      xhr.setRequestHeader("Authorization", "Bearer " + this.props.token);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send();
+  }
+  componentWillMount(){
+    let id = window.location.toString().substring(window.location.toString().lastIndexOf("/") + 1);
+    let url = "http://localhost:8080/articles/" + id;
+    let xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onreadystatechange = () => {
+      if(xhr.readyState == 4){
+        if(xhr.status == 200){
+          let article = JSON.parse(xhr.responseText);
+          this.setState({error: false, errorMessage: "", article})
+        }
+        else{
+          let error = true;
+          this.setState({error})
+        }
+      }
+    };
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.send(null);
+  }
+  render(){
+    let {authenticated, token} = this.props;
+    let {error, errorMessage, article} = this.state;
+    if(!authenticated){
+      return <Redirect to={"/login"} />;
+    }
+    if(error){
+      return <div className={"update-article-container"}><h1>Error, couldn't find article</h1></div>
+    }
+    return (
+      <div className={"update-article-container"}>
+        <h1>Update article</h1>
+        <input type="text" value={article.title} onChange={this.handleTitleChange} /><br />
+        <textarea value={article.body} onChange={this.handleBodyChange} ></textarea>
+        <p>{errorMessage}</p>
+        <button onClick={this.handleUpdate}>Update</button> | <button onClick={this.handleDelete}>Delete</button>
+      </div>
+    )
+  }
+
+}
+
+class AddArticle extends Component {
+  constructor(props){
+    super(props);
+    this.state = {errorMessage: "", body: "", title: ""};
+    this.updateTitle = this.updateTitle.bind(this);
+    this.updateBody = this.updateBody.bind(this);
+    this.addArticle = this.addArticle.bind(this);
+  }
+  updateTitle(e){
+    this.setState({title: e.target.value});
+  }
+  updateBody(e){
+    this.setState({body: e.target.value});
+  }
+  addArticle(){
+    let {title, body} = this.state;
+    if(title == "" || body == ""){
+      let errorMessage = "";
+      if(title == "" && body == ""){
+        errorMessage = "Title and body are empty";
+      }
+      else if(title == ""){
+        errorMessage = "Title is empty";
+      }
+      else{
+        errorMessage = "Body is empty";
+      }
+      this.setState({errorMessage});
+    }
+    else {
+      let xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = () => {
+        if(xhr.readyState == 4)
+        if(xhr.status == 201){
+          this.setState({title: "", body: "", errorMessage: "created"});
+        }
+        else {
+          this.setState({errorMessage: "An error occurred, try again"});
+        }
+      }
+      xhr.open("POST", "http://localhost:8080/articles", true);
+      xhr.setRequestHeader("Authorization", "Bearer " + this.props.token);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify({title, body}));
+    }
+  }
+  render(){
+    let {authenticated, token} = this.props;
+    let {errorMessage, title, body} = this.state;
+    if(!authenticated){
+      return <Redirect to={"/"} />;
+    }
+    return (
+      <div className={"add-article-container"}>
+        <h1>Add article</h1>
+        <input type="text" placeholder="Title" value={title} onChange={this.updateTitle} /><br />
+        <textarea value={body} onChange={this.updateBody}></textarea>
+        <p>{ errorMessage }</p>
+        <button onClick={this.addArticle}>Add article</button>
+      </div>
+    )
+  }
+}
+
+class Login extends Component{
+  constructor(props){
+    super(props);
+    this.state = {username: "", password: "", error: "", shouldRedirect: false}
+    this.handleUsernameChange = this.handleUsernameChange.bind(this);
+    this.handlePasswordChange = this.handlePasswordChange.bind(this);
+    this.handleLoginRequest = this.handleLoginRequest.bind(this);
+  }
+  handleUsernameChange(e){
+    this.setState({username: e.target.value})
+  }
+  handlePasswordChange(e){
+    this.setState({password: e.target.value})
+  }
+  handleLoginRequest(){
+    let {username, password} = this.state;
+    if(username == "" || password == ""){
+      let error = "";
+      if(username == "" && password == ""){
+        error = "Username and password fields are empty";
+      }
+      else if(username == ""){
+        error = "Username field is empty";
+      }
+      else{ 
+        error = "Password field is empty";
+      }
+      this.setState({error})
+    }
+    else {
+      let xhr = new XMLHttpRequest();
+      xhr.onreadystatechange = () => {
+        if(xhr.readyState == 4){
+          if(xhr.status == 200){
+            let bearer = xhr.getResponseHeader("Authorization");
+            console.log(bearer);
+            this.props.handleLogin();
+            this.props.setToken(bearer.split(" ")[1]);
+            this.setState({shouldRedirect: true});
+          }
+          else {
+            this.setState({error: "An error occurred, try again"});
+          }
+        }
+      }
+      xhr.open("POST", "http://localhost:8080/login", true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify({username, password}));
+    }
+  }
+  render(){
+    let {authenticated} = this.props;
+    let {username, password, error, shouldRedirect} = this.state;
+    if(authenticated || shouldRedirect){
+      return <Redirect to={"/"} />;
+    }
+    return (
+      <div className={"login-form-container"}>
+        <h1>Login</h1>
+        <input type="text" value={username} placeholder="Username" onChange={this.handleUsernameChange} />
+        <input type="password" value={password} placeholder="Password" onChange={this.handlePasswordChange}/>
+        <p>{ error }</p>
+        <button onClick={this.handleLoginRequest}>Login</button> 
+      </div>
+    )
+  }
+};
+
+class Logout extends Component {
+  constructor(props){
+    super(props);
+  }
+  componentWillMount(){
+    this.props.handleLogout();
+  }
+  render(){
+    return <Redirect to={"/"} />
+  }
+}
+
+class Articles extends Component{
+  constructor(props){
+    super(props);
+    this.state = {error: false, errorMessage: "", articles: [], page: {}};
+    this.getArticles = this.getArticles.bind(this);
+  }
+  getArticles(item){
+    let url = item === "undefined" ? "http://localhost:8080/articles" : "http://localhost:8080/articles?page=" + item;
+    let xhr = new XMLHttpRequest();
+    xhr.open("GET", url, true);
+    xhr.onreadystatechange = () => {
+      if(xhr.status == 200){
+        let response = JSON.parse(xhr.responseText);
+        let articles = response["_embedded"].articles;
+        let page = response["page"];
+        console.log(articles);
+        console.log(page);
+        this.setState({articles, page, error: false});
+      }
+      else{
+        let error = true;
+        let errorMessage = "An error occurs";
+        this.setState({error})
+      }
+    };
+    xhr.send();
+  }
+  componentWillMount(){
+    this.getArticles();
+  }
+  componentWillUnmount(){
+    this.setState({articles: []})
+  }
+  render(){
+    let {authenticated} = this.props;
+    let {articles, page, error, errorMessage} = this.state;
+    let {totalPages, number} = page;
+    if(!authenticated){
+      return <Redirect to={"/login"} />;
+    }
+    if(error){
+      return(
+        <div className={"articles-container"}>
+          <h1>Articles</h1>
+          <p>{ errorMessage } <button onClick={this.getArticles}>Try again</button></p>
+        </div>
+      )
+    }
+    let footerLinks = [];
+    if(number > 0){
+      for(let i = 0; i < totalPages; i++)
+        footerLinks.push(i);
+    }
+    return(
+      <div className={"articles-container"}>
+        <h1>Articles</h1>
+        <div className={"articles"}>
+          {
+            articles.map(article => {
+                  let url = article["_links"]["article"]["href"]
+                  let id = url.substring(url.lastIndexOf("/") + 1);
+                  return (
+                    <p key={article.id}>
+                      {article.title } 
+                      <Link to={`/updatedelete/${id}`}>Update or Delete</Link>
+                    </p>
+                  )
+          })}
+          <footer>
+            {
+              footerLinks.map(item => {
+                if(item == number)
+                  return <a href="" onClick={e => e.preventDefault()}>{item + 1}</a>;
+                else
+                  return <a href="" onClick={() => this.getArticles(item)}>{item + 1}</a>
+              })
+            }
+          </footer>
+        </div>
+      </div>
+    )
+  }
+}
+
+class Home extends Component {
+  constructor(props){
+      super(props);
+  }
+  render(){
+      let {authenticated} = this.props;
+      if(!authenticated){
+          return (
+              <div className={"home-container"}>
+                  <h1>Admin Home Page</h1>
+                  <Link to={"/login"}>Login</Link>
+              </div>
+          );
+      }
+      return(
+        <div className={"home-container"}>
+          <h1>You are logged in</h1>
+          <Link to={"/articles"}>Articles</Link>
+        </div>
+      )
+
+  }
+};
+
+class Navigation extends Component {
+  constructor(props) {
+    super(props);
+  }
+  render() {
+    let { authenticated } = this.props;
+    return (
+      <nav>
+        <Link to="/">
+          Admin
+        </Link>
+        {authenticated ? (
+          <div>
+            <Link to="/articles">Articles</Link>
+            <Link to="/addarticle">Add article</Link>
+            <Link to="/addadmin">Add admin</Link>
+            <Link to="/logout">Logout</Link>
+          </div>
+        ) : (
+          <Link to="/login">Login</Link>
+        )}
+      </nav>
+    );
+  }
+}
+
+class App extends Component {
+  constructor() {
+    super();
+    this.state = {
+      authenticated: false,
+      token: ""
+    };
+    this.handleLogin = this.handleLogin.bind(this);
+    this.setToken = this.setToken.bind(this);
+    this.handleLogout = this.handleLogout.bind(this);
+  }
+  handleLogin(){
+    this.setState({
+      authenticated: true
+    })
+  }
+  setToken(token){
+    this.setState({
+      token: token
+    })
+  }
+  handleLogout(){
+    this.setState({
+      authenticated: false, token: ""
+    })
+  }
+  render() {
+    let {authenticated, token, refresh} = this.state;
+    console.log(authenticated);
+    return (
+      <div className={"container"}>
+        <Navigation authenticated={authenticated} />
+
+        <Route path={"/"} exact={true} render={() => <Home authenticated={authenticated} />} />
+
+        <Route path={"/articles"} render={() => <Articles authenticated={authenticated} />} />
+        
+        <Route path={"/addarticle"} render={() => <AddArticle authenticated={authenticated} token={token}/>} />
+
+        <Route path={`/updatedelete/:id`} render={() => <UpdateDeleteArticle authenticated={authenticated} token={token} /> } />
+
+        <Route path={"/login"} render={() => <Login authenticated={authenticated} 
+                handleLogin={this.handleLogin} setToken={this.setToken} />} />
+
+        <Route path={"/logout"} render={() => <Logout handleLogout={this.handleLogout} />} /> 
+      </div>
+    );
+  }
+}
+
+render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>, 
+  document.getElementById('root'));
